@@ -13,8 +13,8 @@ import java.util.Map;
  * @date 2024/4/2
  */
 @Data
-@ConfigurationProperties(prefix = "spring")
+@ConfigurationProperties(prefix = "spring.datasource")
 public class DataSourceMultiProperties {
 
-    private Map<String, DataSourceProperties> datasource;
+    private Map<String, DataSourceProperties> multi;
 }

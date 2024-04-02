@@ -34,10 +34,8 @@ import org.apache.ibatis.transaction.TransactionFactory;
 import org.apache.ibatis.type.TypeHandler;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
@@ -60,37 +58,47 @@ import java.util.function.Consumer;
 @EnableConfigurationProperties(MybatisPlusProperties.class)
 public class MybatisPlusConfigurationBean implements InitializingBean {
 
-    private static final Logger logger = LoggerFactory.getLogger(MybatisPlusConfigurationBean.class);
+    private final MybatisPlusProperties properties;
 
-    @Autowired
-    private MybatisPlusProperties properties;
+    private final Interceptor[] interceptors;
 
-    @Autowired
-    private Interceptor[] interceptors;
+    private final TypeHandler[] typeHandlers;
 
-    @Autowired
-    private TypeHandler[] typeHandlers;
+    private final LanguageDriver[] languageDrivers;
 
-    @Autowired
-    private LanguageDriver[] languageDrivers;
+    private final ResourceLoader resourceLoader;
 
-    @Autowired
-    private ResourceLoader resourceLoader;
+    private final DatabaseIdProvider databaseIdProvider;
 
-    @Autowired
-    private DatabaseIdProvider databaseIdProvider;
+    private final List<ConfigurationCustomizer> configurationCustomizers;
 
-    @Autowired
-    private List<ConfigurationCustomizer> configurationCustomizers;
+    private final List<SqlSessionFactoryBeanCustomizer> sqlSessionFactoryBeanCustomizers;
 
-    @Autowired
-    private List<SqlSessionFactoryBeanCustomizer> sqlSessionFactoryBeanCustomizers;
+    private final List<MybatisPlusPropertiesCustomizer> mybatisPlusPropertiesCustomizers;
 
-    @Autowired
-    private List<MybatisPlusPropertiesCustomizer> mybatisPlusPropertiesCustomizers;
+    private final ApplicationContext applicationContext;
 
-    @Autowired
-    private ApplicationContext applicationContext;
+    public MybatisPlusConfigurationBean(MybatisPlusProperties properties,
+                                        ObjectProvider<Interceptor[]> interceptorsProvider,
+                                        ObjectProvider<TypeHandler[]> typeHandlersProvider,
+                                        ObjectProvider<LanguageDriver[]> languageDriversProvider,
+                                        ResourceLoader resourceLoader,
+                                        ObjectProvider<DatabaseIdProvider> databaseIdProvider,
+                                        ObjectProvider<List<ConfigurationCustomizer>> configurationCustomizersProvider,
+                                        ObjectProvider<List<SqlSessionFactoryBeanCustomizer>> sqlSessionFactoryBeanCustomizers,
+                                        ObjectProvider<List<MybatisPlusPropertiesCustomizer>> mybatisPlusPropertiesCustomizerProvider,
+                                        ApplicationContext applicationContext) {
+        this.properties = properties;
+        this.interceptors = interceptorsProvider.getIfAvailable();
+        this.typeHandlers = typeHandlersProvider.getIfAvailable();
+        this.languageDrivers = languageDriversProvider.getIfAvailable();
+        this.resourceLoader = resourceLoader;
+        this.databaseIdProvider = databaseIdProvider.getIfAvailable();
+        this.configurationCustomizers = configurationCustomizersProvider.getIfAvailable();
+        this.sqlSessionFactoryBeanCustomizers = sqlSessionFactoryBeanCustomizers.getIfAvailable();
+        this.mybatisPlusPropertiesCustomizers = mybatisPlusPropertiesCustomizerProvider.getIfAvailable();
+        this.applicationContext = applicationContext;
+    }
 
 
     @Override
@@ -116,7 +124,7 @@ public class MybatisPlusConfigurationBean implements InitializingBean {
         if (StringUtils.hasText(this.properties.getConfigLocation())) {
             factory.setConfigLocation(this.resourceLoader.getResource(this.properties.getConfigLocation()));
         }
-        applyConfiguration(factory);
+        factory.setConfiguration(new MybatisConfiguration());
         if (this.properties.getConfigurationProperties() != null) {
             factory.setConfigurationProperties(this.properties.getConfigurationProperties());
         }
@@ -148,8 +156,6 @@ public class MybatisPlusConfigurationBean implements InitializingBean {
             factory.setScriptingLanguageDrivers(this.languageDrivers);
         }
         Optional.ofNullable(defaultLanguageDriver).ifPresent(factory::setDefaultScriptingLanguageDriver);
-
-        applySqlSessionFactoryBeanCustomizers(factory);
 
         GlobalConfig globalConfig = this.properties.getGlobalConfig();
         this.getBeanThen(MetaObjectHandler.class, globalConfig::setMetaObjectHandler);
@@ -187,27 +193,6 @@ public class MybatisPlusConfigurationBean implements InitializingBean {
             List<T> clazzList = new ArrayList<>();
             beansOfType.forEach((k, v) -> clazzList.add(v));
             consumer.accept(clazzList);
-        }
-    }
-
-    private void applyConfiguration(MybatisSqlSessionFactoryBean factory) {
-        MybatisConfiguration configuration = this.properties.getConfiguration();
-        if (configuration == null && !StringUtils.hasText(this.properties.getConfigLocation())) {
-            configuration = new MybatisConfiguration();
-        }
-        if (configuration != null && !CollectionUtils.isEmpty(this.configurationCustomizers)) {
-            for (ConfigurationCustomizer customizer : this.configurationCustomizers) {
-                customizer.customize(configuration);
-            }
-        }
-        factory.setConfiguration(configuration);
-    }
-
-    private void applySqlSessionFactoryBeanCustomizers(MybatisSqlSessionFactoryBean factory) {
-        if (!CollectionUtils.isEmpty(this.sqlSessionFactoryBeanCustomizers)) {
-            for (SqlSessionFactoryBeanCustomizer customizer : this.sqlSessionFactoryBeanCustomizers) {
-                customizer.customize(factory);
-            }
         }
     }
 

@@ -16,7 +16,8 @@
 package com.codeartist.component.datasource.bean;
 
 
-import com.baomidou.mybatisplus.autoconfigure.*;
+import com.baomidou.mybatisplus.autoconfigure.MybatisPlusProperties;
+import com.baomidou.mybatisplus.autoconfigure.SpringBootVFS;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.config.GlobalConfig;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
@@ -42,7 +43,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.util.Assert;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
@@ -70,12 +70,6 @@ public class MybatisPlusConfigurationBean implements InitializingBean {
 
     private final DatabaseIdProvider databaseIdProvider;
 
-    private final List<ConfigurationCustomizer> configurationCustomizers;
-
-    private final List<SqlSessionFactoryBeanCustomizer> sqlSessionFactoryBeanCustomizers;
-
-    private final List<MybatisPlusPropertiesCustomizer> mybatisPlusPropertiesCustomizers;
-
     private final ApplicationContext applicationContext;
 
     public MybatisPlusConfigurationBean(MybatisPlusProperties properties,
@@ -84,9 +78,6 @@ public class MybatisPlusConfigurationBean implements InitializingBean {
                                         ObjectProvider<LanguageDriver[]> languageDriversProvider,
                                         ResourceLoader resourceLoader,
                                         ObjectProvider<DatabaseIdProvider> databaseIdProvider,
-                                        ObjectProvider<List<ConfigurationCustomizer>> configurationCustomizersProvider,
-                                        ObjectProvider<List<SqlSessionFactoryBeanCustomizer>> sqlSessionFactoryBeanCustomizers,
-                                        ObjectProvider<List<MybatisPlusPropertiesCustomizer>> mybatisPlusPropertiesCustomizerProvider,
                                         ApplicationContext applicationContext) {
         this.properties = properties;
         this.interceptors = interceptorsProvider.getIfAvailable();
@@ -94,28 +85,9 @@ public class MybatisPlusConfigurationBean implements InitializingBean {
         this.languageDrivers = languageDriversProvider.getIfAvailable();
         this.resourceLoader = resourceLoader;
         this.databaseIdProvider = databaseIdProvider.getIfAvailable();
-        this.configurationCustomizers = configurationCustomizersProvider.getIfAvailable();
-        this.sqlSessionFactoryBeanCustomizers = sqlSessionFactoryBeanCustomizers.getIfAvailable();
-        this.mybatisPlusPropertiesCustomizers = mybatisPlusPropertiesCustomizerProvider.getIfAvailable();
         this.applicationContext = applicationContext;
     }
 
-
-    @Override
-    public void afterPropertiesSet() {
-        if (!CollectionUtils.isEmpty(mybatisPlusPropertiesCustomizers)) {
-            mybatisPlusPropertiesCustomizers.forEach(i -> i.customize(properties));
-        }
-        checkConfigFileExists();
-    }
-
-    private void checkConfigFileExists() {
-        if (this.properties.isCheckConfigLocation() && StringUtils.hasText(this.properties.getConfigLocation())) {
-            Resource resource = this.resourceLoader.getResource(this.properties.getConfigLocation());
-            Assert.state(resource.exists(),
-                    "Cannot find config location: " + resource + " (please add config file or check your Mybatis configuration)");
-        }
-    }
 
     public MybatisSqlSessionFactoryBean getSqlSessionFactory(DataSource dataSource) {
         MybatisSqlSessionFactoryBean factory = new MybatisSqlSessionFactoryBean();
@@ -167,6 +139,28 @@ public class MybatisPlusConfigurationBean implements InitializingBean {
         return factory;
     }
 
+    public SqlSessionTemplate getSqlSessionTemplate(SqlSessionFactory sqlSessionFactory) {
+        ExecutorType executorType = this.properties.getExecutorType();
+        if (executorType != null) {
+            return new SqlSessionTemplate(sqlSessionFactory, executorType);
+        } else {
+            return new SqlSessionTemplate(sqlSessionFactory);
+        }
+    }
+
+    @Override
+    public void afterPropertiesSet() {
+        checkConfigFileExists();
+    }
+
+    private void checkConfigFileExists() {
+        if (this.properties.isCheckConfigLocation() && StringUtils.hasText(this.properties.getConfigLocation())) {
+            Resource resource = this.resourceLoader.getResource(this.properties.getConfigLocation());
+            Assert.state(resource.exists(),
+                    "Cannot find config location: " + resource + " (please add config file or check your Mybatis configuration)");
+        }
+    }
+
     /**
      * 检查spring容器里是否有对应的bean,有则进行消费
      *
@@ -193,15 +187,6 @@ public class MybatisPlusConfigurationBean implements InitializingBean {
             List<T> clazzList = new ArrayList<>();
             beansOfType.forEach((k, v) -> clazzList.add(v));
             consumer.accept(clazzList);
-        }
-    }
-
-    public SqlSessionTemplate getSqlSessionTemplate(SqlSessionFactory sqlSessionFactory) {
-        ExecutorType executorType = this.properties.getExecutorType();
-        if (executorType != null) {
-            return new SqlSessionTemplate(sqlSessionFactory, executorType);
-        } else {
-            return new SqlSessionTemplate(sqlSessionFactory);
         }
     }
 }

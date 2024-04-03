@@ -1,6 +1,5 @@
 package com.codeartist.component.datasource.context;
 
-import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import com.codeartist.component.datasource.bean.DataSourceMultiProperties;
 import com.codeartist.component.datasource.bean.MybatisPlusConfigurationBean;
 import com.zaxxer.hikari.HikariDataSource;
@@ -10,7 +9,7 @@ import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
-import org.springframework.beans.factory.support.AbstractBeanDefinition;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.GenericBeanDefinition;
@@ -25,6 +24,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.util.CollectionUtils;
 
 import javax.sql.DataSource;
+import java.util.function.Function;
 
 /**
  * 数据库多数据连接注册Bean
@@ -36,10 +36,6 @@ import javax.sql.DataSource;
 public class DataSourceMultiRegister implements ImportBeanDefinitionRegistrar, EnvironmentAware, BeanFactoryAware {
 
     private static final String SPRING_DATASOURCE_PREFIX = "spring.datasource";
-    private static final String DATASOURCE_BEAN_NAME = "DataSource";
-    private static final String SQL_SESSION_FACTORY_BEAN_NAME = "SqlSessionFactory";
-    private static final String SQL_SESSION_TEMPLATE_BEAN_NAME = "SqlSessionTemplate";
-    private static final String TRANSACTION_MANAGER_BEAN_NAME = "TransactionManager";
 
     private BeanFactory beanFactory;
     private Environment environment;
@@ -60,55 +56,50 @@ public class DataSourceMultiRegister implements ImportBeanDefinitionRegistrar, E
         }
 
         multiProperties.getMulti().forEach((name, properties) -> {
-            registerDataSourceBean(registry, name, properties);
-            registerSqlSessionFactoryBean(registry, name);
-            registerSqlSessionTemplateBean(registry, name);
-            registerTransactionManagerBean(registry, name);
+            registerBean(registry, name, DataSource.class, n -> instanceDataSource(properties));
+            registerBean(registry, name, SqlSessionFactory.class, this::instanceSqlSessionFactory);
+            registerBean(registry, name, SqlSessionTemplate.class, this::instanceSqlSessionTemplate);
+            registerBean(registry, name, DataSourceTransactionManager.class, this::instanceDataSourceTransactionManager);
         });
     }
 
-    private void registerDataSourceBean(BeanDefinitionRegistry registry, String name, DataSourceProperties properties) {
-        BeanDefinitionBuilder builder = BeanDefinitionBuilder.genericBeanDefinition(DataSource.class, () ->
-                properties.initializeDataSourceBuilder().type(HikariDataSource.class).build());
-        AbstractBeanDefinition definition = builder.getRawBeanDefinition();
-        definition.setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME);
-        registry.registerBeanDefinition(name + DATASOURCE_BEAN_NAME, definition);
-        printRegisterBeanLog(name + DATASOURCE_BEAN_NAME, DataSource.class.getName());
+    private DataSource instanceDataSource(DataSourceProperties properties) {
+        return properties.initializeDataSourceBuilder().type(HikariDataSource.class).build();
     }
 
-    private void registerSqlSessionFactoryBean(BeanDefinitionRegistry registry, String name) {
-        BeanDefinitionBuilder builder = BeanDefinitionBuilder.genericBeanDefinition(MybatisSqlSessionFactoryBean.class, () -> {
-            MybatisPlusConfigurationBean configurationBean = beanFactory.getBean(MybatisPlusConfigurationBean.class);
-            DataSource dataSource = beanFactory.getBean(name + DATASOURCE_BEAN_NAME, DataSource.class);
-            return configurationBean.getSqlSessionFactory(dataSource);
-        });
-        AbstractBeanDefinition definition = builder.getRawBeanDefinition();
-        definition.setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME);
-        registry.registerBeanDefinition(name + SQL_SESSION_FACTORY_BEAN_NAME, definition);
-        printRegisterBeanLog(name + SQL_SESSION_FACTORY_BEAN_NAME, MybatisSqlSessionFactoryBean.class.getName());
+    private SqlSessionFactory instanceSqlSessionFactory(String name) {
+        MybatisPlusConfigurationBean configurationBean = beanFactory.getBean(MybatisPlusConfigurationBean.class);
+        DataSource dataSource = beanFactory.getBean(name + DataSource.class.getSimpleName(), DataSource.class);
+        try {
+            return configurationBean.getSqlSessionFactory(dataSource).getObject();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private void registerSqlSessionTemplateBean(BeanDefinitionRegistry registry, String name) {
-        BeanDefinitionBuilder builder = BeanDefinitionBuilder.genericBeanDefinition(SqlSessionTemplate.class, () -> {
-            MybatisPlusConfigurationBean configurationBean = beanFactory.getBean(MybatisPlusConfigurationBean.class);
-            SqlSessionFactory sqlSessionFactory = beanFactory.getBean(name + SQL_SESSION_FACTORY_BEAN_NAME, SqlSessionFactory.class);
-            return configurationBean.getSqlSessionTemplate(sqlSessionFactory);
-        });
-        AbstractBeanDefinition definition = builder.getRawBeanDefinition();
-        definition.setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME);
-        registry.registerBeanDefinition(name + SQL_SESSION_TEMPLATE_BEAN_NAME, definition);
-        printRegisterBeanLog(name + SQL_SESSION_TEMPLATE_BEAN_NAME, MybatisSqlSessionFactoryBean.class.getName());
+    private SqlSessionTemplate instanceSqlSessionTemplate(String name) {
+        MybatisPlusConfigurationBean configurationBean = beanFactory.getBean(MybatisPlusConfigurationBean.class);
+        SqlSessionFactory sqlSessionFactory = beanFactory
+                .getBean(name + SqlSessionFactory.class.getSimpleName(), SqlSessionFactory.class);
+        return configurationBean.getSqlSessionTemplate(sqlSessionFactory);
     }
 
-    private void registerTransactionManagerBean(BeanDefinitionRegistry registry, String name) {
-        BeanDefinitionBuilder builder = BeanDefinitionBuilder.genericBeanDefinition(DataSourceTransactionManager.class, () -> {
-            DataSource dataSource = beanFactory.getBean(name + DATASOURCE_BEAN_NAME, DataSource.class);
-            return new DataSourceTransactionManager(dataSource);
-        });
-        AbstractBeanDefinition definition = builder.getRawBeanDefinition();
-        definition.setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME);
-        registry.registerBeanDefinition(name + TRANSACTION_MANAGER_BEAN_NAME, definition);
-        printRegisterBeanLog(name + TRANSACTION_MANAGER_BEAN_NAME, DataSourceTransactionManager.class.getName());
+    private DataSourceTransactionManager instanceDataSourceTransactionManager(String name) {
+        DataSource dataSource = beanFactory.getBean(name + DataSource.class.getSimpleName(), DataSource.class);
+        return new DataSourceTransactionManager(dataSource);
+    }
+
+    private <T> void registerBean(BeanDefinitionRegistry registry, String name, Class<T> beanClass,
+                                  Function<String, T> instanceFunction) {
+
+        String beanName = name + beanClass.getSimpleName();
+
+        BeanDefinition definition = BeanDefinitionBuilder.genericBeanDefinition(beanClass, () -> instanceFunction.apply(name))
+                .setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME)
+                .getRawBeanDefinition();
+
+        registry.registerBeanDefinition(beanName, definition);
+        log.info("Bean '{}' of type [{}] is registered", beanName, beanClass.getName());
     }
 
     @Override
@@ -119,9 +110,5 @@ public class DataSourceMultiRegister implements ImportBeanDefinitionRegistrar, E
     @Override
     public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
         this.beanFactory = beanFactory;
-    }
-
-    private void printRegisterBeanLog(String beanName, String type) {
-        log.info("Bean '{}' of type [{}] is registered", beanName, type);
     }
 }

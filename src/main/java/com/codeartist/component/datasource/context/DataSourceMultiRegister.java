@@ -21,6 +21,7 @@ import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
 import org.springframework.core.env.Environment;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.CollectionUtils;
 
 import javax.sql.DataSource;
@@ -60,6 +61,7 @@ public class DataSourceMultiRegister implements ImportBeanDefinitionRegistrar, E
             registerBean(registry, name, SqlSessionFactory.class, this::instanceSqlSessionFactory);
             registerBean(registry, name, SqlSessionTemplate.class, this::instanceSqlSessionTemplate);
             registerBean(registry, name, DataSourceTransactionManager.class, this::instanceDataSourceTransactionManager);
+            registerBean(registry, name, TransactionTemplate.class, this::instanceTransactionTemplate);
         });
     }
 
@@ -87,6 +89,13 @@ public class DataSourceMultiRegister implements ImportBeanDefinitionRegistrar, E
     private DataSourceTransactionManager instanceDataSourceTransactionManager(String name) {
         DataSource dataSource = beanFactory.getBean(name + DataSource.class.getSimpleName(), DataSource.class);
         return new DataSourceTransactionManager(dataSource);
+    }
+
+    private TransactionTemplate instanceTransactionTemplate(String name) {
+        DataSourceTransactionManager transactionManager =
+                beanFactory.getBean(name + DataSourceTransactionManager.class.getSimpleName(),
+                        DataSourceTransactionManager.class);
+        return new TransactionTemplate(transactionManager);
     }
 
     private <T> void registerBean(BeanDefinitionRegistry registry, String name, Class<T> beanClass,

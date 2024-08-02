@@ -14,7 +14,15 @@ import java.util.Map;
  */
 @Data
 @ConfigurationProperties(prefix = "spring.datasource")
-public class DataSourceMultiProperties {
+public class MultiDataSourceProperties {
 
+    /**
+     * 默认数据源名称
+     */
+    private String defaultName;
+
+    /**
+     * 多数据源配置，Key为数据源名称
+     */
     private Map<String, DataSourceProperties> multi;
 }

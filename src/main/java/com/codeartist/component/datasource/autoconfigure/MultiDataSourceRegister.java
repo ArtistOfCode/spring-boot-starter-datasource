@@ -73,6 +73,7 @@ public class MultiDataSourceRegister implements ImportBeanDefinitionRegistrar, E
         BeanDefinition definition = BeanDefinitionBuilder
                 .genericBeanDefinition(DataSource.class, () -> newDataSource(name, properties))
                 .setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME)
+                .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                 .getRawBeanDefinition();
 
         registry.registerBeanDefinition(beanName, definition);
@@ -85,6 +86,7 @@ public class MultiDataSourceRegister implements ImportBeanDefinitionRegistrar, E
         BeanDefinition definition = BeanDefinitionBuilder
                 .genericBeanDefinition(SqlSessionFactory.class, () -> newSqlSessionFactory(name))
                 .setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME)
+                .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                 .getRawBeanDefinition();
 
         registry.registerBeanDefinition(beanName, definition);
@@ -97,6 +99,7 @@ public class MultiDataSourceRegister implements ImportBeanDefinitionRegistrar, E
         BeanDefinition definition = BeanDefinitionBuilder
                 .genericBeanDefinition(SqlSessionTemplate.class, () -> newSqlSessionTemplate(name))
                 .setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME)
+                .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                 .getRawBeanDefinition();
 
         registry.registerBeanDefinition(beanName, definition);
@@ -109,6 +112,7 @@ public class MultiDataSourceRegister implements ImportBeanDefinitionRegistrar, E
         BeanDefinition definition = BeanDefinitionBuilder
                 .genericBeanDefinition(DataSourceTransactionManager.class)
                 .setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME)
+                .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                 .addConstructorArgReference(name + DataSource.class.getSimpleName())
                 .getRawBeanDefinition();
 
@@ -122,6 +126,7 @@ public class MultiDataSourceRegister implements ImportBeanDefinitionRegistrar, E
         BeanDefinition definition = BeanDefinitionBuilder
                 .genericBeanDefinition(TransactionTemplate.class)
                 .setAutowireMode(GenericBeanDefinition.AUTOWIRE_BY_NAME)
+                .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                 .addConstructorArgReference(name + DataSourceTransactionManager.class.getSimpleName())
                 .getRawBeanDefinition();
 

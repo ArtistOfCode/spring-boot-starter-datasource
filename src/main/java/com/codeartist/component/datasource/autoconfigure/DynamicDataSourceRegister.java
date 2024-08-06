@@ -62,6 +62,7 @@ public class DynamicDataSourceRegister implements ImportBeanDefinitionRegistrar,
 
         String beanName = "dataSource";
         BeanDefinition definition = BeanDefinitionBuilder.genericBeanDefinition(DynamicDatasource.class)
+                .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                 .getRawBeanDefinition();
         registry.registerBeanDefinition(beanName, definition);
         log(beanName);
